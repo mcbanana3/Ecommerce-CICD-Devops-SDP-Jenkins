@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useContext } from 'react';
+﻿import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { Container, Row, Col, Card, Button, Table, Modal, Form, Tabs, Tab, Badge, ProgressBar } from 'react-bootstrap';
 import { AuthContext } from '../context/AuthContext';
 import { productService } from '../services/productService';
@@ -24,6 +24,40 @@ const SellerDashboard = () => {
     brand: ''
   });
 
+  // Calculate statistics with useMemo for efficient updates
+  const statistics = useMemo(() => {
+    const totalRevenue = orders.reduce((sum, order) => 
+      sum + (order.orderItems?.reduce((itemSum, item) => 
+        itemSum + (products.some(p => p.id === item.product?.id) ? 
+          (item.price * item.quantity) : 0), 0) || 0), 0
+    );
+
+    const totalOrders = orders.length;
+    const pendingOrders = orders.filter(order => order.status === 'PENDING').length;
+    const confirmedOrders = orders.filter(order => order.status === 'CONFIRMED').length;
+    const shippedOrders = orders.filter(order => order.status === 'SHIPPED').length;
+    const deliveredOrders = orders.filter(order => order.status === 'DELIVERED').length;
+
+    // Calculate total sold items (only confirmed, shipped, delivered orders)
+    const soldOrders = orders.filter(order => 
+      ['CONFIRMED', 'SHIPPED', 'DELIVERED'].includes(order.status)
+    );
+    const totalSoldItems = soldOrders.reduce((sum, order) => 
+      sum + (order.orderItems?.reduce((itemSum, item) => 
+        itemSum + (products.some(p => p.id === item.product?.id) ? item.quantity : 0), 0) || 0), 0
+    );
+
+    return {
+      totalRevenue,
+      totalOrders,
+      pendingOrders,
+      confirmedOrders,
+      shippedOrders,
+      deliveredOrders,
+      totalSoldItems
+    };
+  }, [orders, products]);
+
   useEffect(() => {
     fetchProducts();
     fetchOrders();
@@ -46,12 +80,52 @@ const SellerDashboard = () => {
     }
   };
 
+  const updateOrderStatus = async (orderId, newStatus) => {
+    try {
+      console.log(`Updating order ${orderId} status to ${newStatus}`);
+      
+      // Update the order status on the backend
+      const response = await orderService.updateOrderStatus(orderId, newStatus);
+      console.log('Update response:', response);
+      
+      // Immediately update the local state for instant feedback
+      setOrders(prevOrders => {
+        const updatedOrders = prevOrders.map(order => 
+          order.id === orderId 
+            ? { ...order, status: newStatus }
+            : order
+        );
+        console.log('Updated local orders:', updatedOrders);
+        return updatedOrders;
+      });
+      
+      toast.success(`Order status updated to ${newStatus}`);
+      
+      // Also refresh from server to ensure consistency
+      console.log('Refreshing orders from server...');
+      await fetchOrders();
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      toast.error('Failed to update order status');
+      // If update failed, refresh to get current state
+      await fetchOrders();
+    }
+  };
+
+  const handleStatusChange = (orderId, currentStatus, newStatus) => {
+    if (newStatus !== currentStatus) {
+      updateOrderStatus(orderId, newStatus);
+    }
+  };
+
   const fetchOrders = async () => {
     try {
       setOrdersLoading(true);
       if (user && user.id) {
+        console.log('Fetching orders for seller:', user.id);
         // Use the new seller orders endpoint
         const sellerOrders = await orderService.getOrdersBySeller(user.id);
+        console.log('Fetched orders:', sellerOrders);
         setOrders(Array.isArray(sellerOrders) ? sellerOrders : []);
       } else {
         setOrders([]);
@@ -146,11 +220,7 @@ const SellerDashboard = () => {
                   <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>💰</div>
                   <Card.Title>Total Revenue</Card.Title>
                   <h3 className="text-success">
-                    ₹{orders.reduce((sum, order) => 
-                      sum + (order.orderItems?.reduce((itemSum, item) => 
-                        itemSum + (products.some(p => p.id === item.product?.id) ? 
-                          (item.price * item.quantity) : 0), 0) || 0), 0
-                    ).toLocaleString()}
+                    ₹{statistics.totalRevenue.toLocaleString()}
                   </h3>
                 </Card.Body>
               </Card>
@@ -160,16 +230,87 @@ const SellerDashboard = () => {
                 <Card.Body>
                   <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📋</div>
                   <Card.Title>Total Orders</Card.Title>
-                  <h3 className="text-info">{orders.length}</h3>
+                  <h3 className="text-info">{statistics.totalOrders}</h3>
                 </Card.Body>
               </Card>
             </Col>
             <Col md={3}>
               <Card className="text-center">
                 <Card.Body>
-                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>⚠️</div>
-                  <Card.Title>Low Stock</Card.Title>
-                  <h3 className="text-warning">{products.filter(product => product.stockQuantity < 10).length}</h3>
+                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>⏳</div>
+                  <Card.Title>Pending Orders</Card.Title>
+                  <h3 className="text-warning">{statistics.pendingOrders}</h3>
+                </Card.Body>
+              </Card>
+            </Col>
+          </Row>
+
+          {/* Additional Statistics Row */}
+          <Row className="mb-4">
+            <Col md={4}>
+              <Card className="text-center">
+                <Card.Body>
+                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📊</div>
+                  <Card.Title>Items Sold</Card.Title>
+                  <h3 className="text-success">{statistics.totalSoldItems}</h3>
+                  <small className="text-muted">Confirmed, Shipped & Delivered</small>
+                </Card.Body>
+              </Card>
+            </Col>
+            <Col md={4}>
+              <Card className="text-center">
+                <Card.Body>
+                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>✅</div>
+                  <Card.Title>Completed Orders</Card.Title>
+                  <h3 className="text-success">{statistics.confirmedOrders + statistics.shippedOrders + statistics.deliveredOrders}</h3>
+                  <small className="text-muted">Non-pending orders</small>
+                </Card.Body>
+              </Card>
+            </Col>
+            <Col md={4}>
+              <Card className="text-center">
+                <Card.Body>
+                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>💼</div>
+                  <Card.Title>Active Products</Card.Title>
+                  <h3 className="text-info">{products.filter(p => p.stockQuantity > 0).length}</h3>
+                  <small className="text-muted">In stock products</small>
+                </Card.Body>
+              </Card>
+            </Col>
+          </Row>
+
+          {/* Add quick stats for different order statuses */}
+          <Row className="mb-4">
+            <Col>
+              <Card>
+                <Card.Body>
+                  <h5>Order Status Overview</h5>
+                  <Row className="text-center">
+                    <Col>
+                      <div className="p-2">
+                        <Badge bg="warning" className="fs-6">PENDING</Badge>
+                        <div className="h4 mt-1">{statistics.pendingOrders}</div>
+                      </div>
+                    </Col>
+                    <Col>
+                      <div className="p-2">
+                        <Badge bg="primary" className="fs-6">CONFIRMED</Badge>
+                        <div className="h4 mt-1">{statistics.confirmedOrders}</div>
+                      </div>
+                    </Col>
+                    <Col>
+                      <div className="p-2">
+                        <Badge bg="info" className="fs-6">SHIPPED</Badge>
+                        <div className="h4 mt-1">{statistics.shippedOrders}</div>
+                      </div>
+                    </Col>
+                    <Col>
+                      <div className="p-2">
+                        <Badge bg="success" className="fs-6">DELIVERED</Badge>
+                        <div className="h4 mt-1">{statistics.deliveredOrders}</div>
+                      </div>
+                    </Col>
+                  </Row>
                 </Card.Body>
               </Card>
             </Col>
@@ -226,8 +367,10 @@ const SellerDashboard = () => {
                       </thead>
                       <tbody>
                         {products.map((product) => {
+                          // Only count confirmed, shipped, or delivered orders as "sold"
                           const productOrders = orders.filter(order => 
-                            order.orderItems?.some(item => item.product?.id === product.id)
+                            order.orderItems?.some(item => item.product?.id === product.id) &&
+                            ['CONFIRMED', 'SHIPPED', 'DELIVERED'].includes(order.status)
                           );
                           const totalSold = productOrders.reduce((sum, order) => 
                             sum + (order.orderItems?.find(item => item.product?.id === product.id)?.quantity || 0), 0
@@ -361,26 +504,60 @@ const SellerDashboard = () => {
                                 <strong>₹{orderTotal.toLocaleString()}</strong>
                               </td>
                               <td>
-                                <Badge bg={
-                                  order.status === 'DELIVERED' ? 'success' :
-                                  order.status === 'SHIPPED' ? 'info' :
-                                  order.status === 'PROCESSING' ? 'warning' :
-                                  order.status === 'PENDING' ? 'secondary' : 'danger'
-                                }>
-                                  {order.status}
-                                </Badge>
+                                <div className="d-flex align-items-center gap-2">
+                                  <Badge bg={
+                                    order.status === 'DELIVERED' ? 'success' :
+                                    order.status === 'SHIPPED' ? 'info' :
+                                    order.status === 'CONFIRMED' ? 'primary' :
+                                    order.status === 'PENDING' ? 'warning' : 'danger'
+                                  }>
+                                    {order.status}
+                                  </Badge>
+                                  <Form.Select 
+                                    size="sm" 
+                                    style={{ width: '120px' }}
+                                    value={order.status}
+                                    onChange={(e) => handleStatusChange(order.id, order.status, e.target.value)}
+                                  >
+                                    <option value="PENDING">PENDING</option>
+                                    <option value="CONFIRMED">CONFIRMED</option>
+                                    <option value="SHIPPED">SHIPPED</option>
+                                    <option value="DELIVERED">DELIVERED</option>
+                                    <option value="CANCELLED">CANCELLED</option>
+                                  </Form.Select>
+                                </div>
                               </td>
                               <td>
                                 <small>{new Date(order.orderDate).toLocaleDateString()}</small>
                               </td>
                               <td>
-                                <Button
-                                  variant="outline-info"
-                                  size="sm"
-                                  onClick={() => window.open(`/orders/${order.id}`, '_blank')}
-                                >
-                                  View Details
-                                </Button>
+                                <div className="d-flex gap-1">
+                                  <Button
+                                    variant="outline-info"
+                                    size="sm"
+                                    onClick={() => window.open(`/orders/${order.id}`, '_blank')}
+                                  >
+                                    View
+                                  </Button>
+                                  {order.status === 'PENDING' && (
+                                    <Button
+                                      variant="success"
+                                      size="sm"
+                                      onClick={() => handleStatusChange(order.id, order.status, 'CONFIRMED')}
+                                    >
+                                      Confirm
+                                    </Button>
+                                  )}
+                                  {order.status === 'CONFIRMED' && (
+                                    <Button
+                                      variant="primary"
+                                      size="sm"
+                                      onClick={() => handleStatusChange(order.id, order.status, 'SHIPPED')}
+                                    >
+                                      Ship
+                                    </Button>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           );

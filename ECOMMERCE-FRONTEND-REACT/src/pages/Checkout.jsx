@@ -99,9 +99,23 @@ const Checkout = () => {
       );
       
       console.log('Order created successfully:', order);
-      toast.success('Order placed successfully!');
-      clearCart();
-      navigate(`/orders/${order.id}`);
+      console.log('Order structure:', JSON.stringify(order, null, 2));
+      
+      if (order && order.id) {
+        toast.success(`Order #${order.id} placed successfully!`);
+        clearCart();
+        // Add a delay to ensure cart is cleared before navigation
+        setTimeout(() => {
+          navigate('/orders');
+        }, 1000);
+      } else {
+        console.error('Order created but missing ID:', order);
+        toast.error('Order created but navigation failed');
+        // Still navigate to orders page to show existing orders
+        setTimeout(() => {
+          navigate('/orders');
+        }, 1000);
+      }
     } catch (error) {
       console.error('Error placing order:', error);
       

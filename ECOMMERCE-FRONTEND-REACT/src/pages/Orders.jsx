@@ -18,7 +18,10 @@ const Orders = () => {
 
   const fetchOrders = async () => {
     try {
+      console.log('Fetching orders for user:', user.id);
       const ordersData = await orderService.getOrdersByUser(user.id);
+      console.log('Orders received:', ordersData);
+      console.log('Orders structure:', JSON.stringify(ordersData, null, 2));
       setOrders(ordersData.sort((a, b) => new Date(b.orderDate) - new Date(a.orderDate)));
     } catch (error) {
       console.error('Error fetching orders:', error);
