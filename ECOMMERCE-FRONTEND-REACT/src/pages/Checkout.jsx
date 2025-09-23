@@ -104,17 +104,25 @@ const Checkout = () => {
       if (order && order.id) {
         toast.success(`Order #${order.id} placed successfully!`);
         clearCart();
-        // Add a delay to ensure cart is cleared before navigation
+        
+        // Add small delay to ensure cart clearing and state updates
         setTimeout(() => {
-          navigate('/orders');
-        }, 1000);
+          console.log('Navigating to order-success with orderId:', order.id);
+          navigate('/order-success', { 
+            state: { orderId: order.id },
+            replace: true // Replace current entry in history
+          });
+        }, 500);
       } else {
         console.error('Order created but missing ID:', order);
-        toast.error('Order created but navigation failed');
-        // Still navigate to orders page to show existing orders
+        toast.success('Order placed successfully!');
+        clearCart();
+        
+        // Navigate to orders page as fallback
         setTimeout(() => {
+          console.log('Navigating to orders page as fallback');
           navigate('/orders');
-        }, 1000);
+        }, 500);
       }
     } catch (error) {
       console.error('Error placing order:', error);
