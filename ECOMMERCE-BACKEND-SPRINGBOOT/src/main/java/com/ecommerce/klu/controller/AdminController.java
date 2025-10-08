@@ -20,7 +20,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/admin")
-@CrossOrigin(origins = "http://localhost:2030")
+@CrossOrigin(origins = "http://localhost:2030/reactecommerceapi")
 public class AdminController {
 
     @Autowired

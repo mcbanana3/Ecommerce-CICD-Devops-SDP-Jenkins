@@ -12,7 +12,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/sellers")
-@CrossOrigin(origins = "http://localhost:2030")
+@CrossOrigin(origins = "http://localhost:2030/reactecommerceapi")
 public class SellerController {
 
     @Autowired

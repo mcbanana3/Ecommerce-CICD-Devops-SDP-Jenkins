@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/cart")
-@CrossOrigin(origins = "http://localhost:2030")
+@CrossOrigin(origins = "http://localhost:2030/reactecommerceapi")
 public class CartController {
 
     @Autowired
