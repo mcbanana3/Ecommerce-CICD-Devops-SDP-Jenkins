@@ -13,6 +13,7 @@
 	<version>0.0.1-SNAPSHOT</version>
 	<name>ECOMMERCE-BACKEND-SPRINGBOOT</name>
 	<description>SDP Project CI CD DevOps Ecommerce Full Stack Backend</description>
+	<packaging>war</packaging>
 	<url/>
 	<licenses>
 		<license/>
@@ -61,6 +62,7 @@
 	</dependencies>
 
 	<build>
+		<finalName>springbootecommerceapi</finalName>
 		<plugins>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
